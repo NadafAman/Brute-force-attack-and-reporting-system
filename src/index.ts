@@ -1,6 +1,7 @@
 import { AuditReporter } from './reporter.js';
 import { AuditReportSchema } from './types.js';
 import { wpSecurityAgent } from './agent.js';
+import { CONSTANTS, RECOMMENDATIONS } from './constants.js';
 
 export function parseTargetUrl(args: string[] = process.argv.slice(2)): string {
   for (let i = 0; i < args.length; i++) {
@@ -8,7 +9,7 @@ export function parseTargetUrl(args: string[] = process.argv.slice(2)): string {
     if (arg.startsWith('--target=')) return arg.split('=')[1];
     if ((arg === '--target' || arg === '-t') && args[i + 1]) return args[i + 1];
   }
-  return process.env.TARGET_URL || 'http://localhost:8080';
+  return process.env.TARGET_URL || CONSTANTS.DEFAULT_TARGET_URL;
 }
 
 async function main() {
@@ -37,19 +38,19 @@ async function main() {
     inspections: results,
     aiExecutiveSummary: summary,
     defensiveRecommendations: [
-      'Restrict /wp-json/wp/v2/users access via custom theme filters (require authentication).',
-      'Configure WAF rules to return HTTP 403 on ?author= query parameters.',
-      'Disable or block xmlrpc.php at the web server level.',
-      'Move or restrict access to /wp-content/debug.log.',
+      RECOMMENDATIONS.REST_API,
+      RECOMMENDATIONS.AUTHOR_WAF,
+      RECOMMENDATIONS.DISABLE_XMLRPC,
+      RECOMMENDATIONS.RESTRICT_DEBUG_LOG,
       ...(bruteForceResults?.successful
         ? [
-            'CRITICAL: Change the compromised password immediately.',
-            'Enforce 2FA for all administrator accounts.',
-            'Deploy brute force protection (e.g. Wordfence, Fail2ban).',
+            RECOMMENDATIONS.COMPROMISED_PASSWORD,
+            RECOMMENDATIONS.ENFORCE_2FA,
+            RECOMMENDATIONS.BRUTE_FORCE_PROTECTION,
           ]
         : [
-            'Implement rate limiting on wp-login.php.',
-            'Use strong, unique passwords (minimum 16 characters).',
+            RECOMMENDATIONS.RATE_LIMIT_LOGIN,
+            RECOMMENDATIONS.STRONG_PASSWORDS,
           ]),
     ],
     bruteForce: bruteForceSummary,

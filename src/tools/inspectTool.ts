@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { HTTPInspector } from '../inspector.js';
 import { bruteForceWordPressUser } from '../bruteforce.js';
+import { ENDPOINTS, CONSTANTS } from '../constants.js';
 
 /**
  * Probes any WordPress HTTP endpoint for status, headers, and extracted usernames.
@@ -9,11 +10,11 @@ import { bruteForceWordPressUser } from '../bruteforce.js';
 export const inspectEndpointTool = tool({
   description:
     'Inspect a WordPress HTTP endpoint. Returns status code and any extracted usernames. ' +
-    'Use endpointPath values like: /wp-json/wp/v2/users, /?author=1, /?author=2, /?author=3, ' +
-    '/wp-content/debug.log, /readme.html',
+    `Use endpointPath values like: ${ENDPOINTS.REST_API_USERS}, ${ENDPOINTS.AUTHOR_1}, ${ENDPOINTS.AUTHOR_2}, ${ENDPOINTS.AUTHOR_3}, ` +
+    `${ENDPOINTS.DEBUG_LOG}, ${ENDPOINTS.README}`,
   inputSchema: z.object({
-    targetUrl: z.string().describe('Base URL of the WordPress target, e.g. http://localhost:8080'),
-    endpointPath: z.string().describe('Relative path to probe, e.g. /wp-json/wp/v2/users'),
+    targetUrl: z.string().describe(`Base URL of the WordPress target, e.g. ${CONSTANTS.DEFAULT_TARGET_URL}`),
+    endpointPath: z.string().describe(`Relative path to probe, e.g. ${ENDPOINTS.REST_API_USERS}`),
   }),
   execute: async ({ targetUrl, endpointPath }: { targetUrl: string; endpointPath: string }) => {
     const inspector = new HTTPInspector({ targetUrl, timeoutMs: 8000 });
@@ -27,7 +28,7 @@ export const inspectEndpointTool = tool({
  */
 export const probeXmlRpcTool = tool({
   description:
-    'Probe the WordPress XML-RPC interface at /xmlrpc.php. ' +
+    `Probe the WordPress XML-RPC interface at ${ENDPOINTS.XMLRPC}. ` +
     'Validates whether a username exists using error-code discrimination (403=exists, 404=not found). ' +
     'Always call this once. Pass the best known username or "admin" if none found yet.',
   inputSchema: z.object({
@@ -41,19 +42,18 @@ export const probeXmlRpcTool = tool({
 });
 
 /**
- * Brute-forces wp-login.php. Hard-capped at 100 attempts.
- * Call ONCE after confirming a username via enumeration.
+ * Brute-forces wp-login.php using passwords.txt wordlist.
  */
 export const bruteForceLoginTool = tool({
   description:
-    'Brute-force wp-login.php for a confirmed WordPress username. ' +
+    `Brute-force ${ENDPOINTS.WP_LOGIN} for a confirmed WordPress username. ` +
     'Call this ONCE using the admin or first discovered username.',
   inputSchema: z.object({
     targetUrl: z.string().describe('Base URL of the WordPress target'),
     username: z.string().describe('The confirmed username to brute-force'),
   }),
   execute: async ({ targetUrl, username }: { targetUrl: string; username: string }) => {
-    return bruteForceWordPressUser(targetUrl, username, 'passwords.txt', {
+    return bruteForceWordPressUser(targetUrl, username, CONSTANTS.DEFAULT_PASSWORD_FILE, {
       workers: 10,
       delay: 0.05,
       timeout: 10000,

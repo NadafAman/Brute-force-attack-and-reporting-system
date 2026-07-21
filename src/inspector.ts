@@ -1,4 +1,5 @@
 import { InspectionResult, TelemetryConfig } from './types.js';
+import { ENDPOINTS, CONSTANTS } from './constants.js';
 
 export class HTTPInspector {
   private config: TelemetryConfig;
@@ -26,7 +27,7 @@ export class HTTPInspector {
         signal: controller.signal,
         redirect: 'manual',
         headers: {
-          'User-Agent': 'Mastra-Security-Auditor/1.0'
+          'User-Agent': CONSTANTS.AUDITOR_USER_AGENT
         }
       });
       clearTimeout(timeoutId);
@@ -42,7 +43,7 @@ export class HTTPInspector {
       if (response.status === 200) {
         try {
           const bodyText = await response.text();
-          if (path.includes('/wp-json/wp/v2/users')) {
+          if (path.includes(ENDPOINTS.REST_API_USERS)) {
             const data = JSON.parse(bodyText);
             if (Array.isArray(data)) {
               for (const item of data) {
@@ -58,10 +59,10 @@ export class HTTPInspector {
           // Debug log username extraction via PHP error messages
           if (path.includes('debug.log')) {
             const userMatches = [
-              ...bodyText.matchAll(/login failed for [\'""]?([a-zA-Z0-9_\-\.]+)[\'""]?/gi),
-              ...bodyText.matchAll(/user[: ]+[\'""]?([a-zA-Z0-9_\-\.]+)[\'""]?.*not found/gi),
-              ...bodyText.matchAll(/Invalid username[. ]*[\'""]([a-zA-Z0-9_\-\.]+)[\'""]/gi),
-              ...bodyText.matchAll(/Username:?\s+[\'""]?([a-zA-Z0-9_\-\.]+)[\'""]/gi)
+              ...bodyText.matchAll(/login failed for ['"]?([a-zA-Z0-9_\-\.]+)['"]?/gi),
+              ...bodyText.matchAll(/user[: ]+['"]?([a-zA-Z0-9_\-\.]+)['"]?.*not found/gi),
+              ...bodyText.matchAll(/Invalid username[. ]*['"]([a-zA-Z0-9_\-\.]+)['"]/gi),
+              ...bodyText.matchAll(/Username:?\s+['"]?([a-zA-Z0-9_\-\.]+)['"]/gi)
             ];
             for (const match of userMatches) {
               if (match[1]) extractedUsers.push(match[1]);
@@ -109,16 +110,12 @@ export class HTTPInspector {
   /**
    * Probes the XML-RPC interface using a wp.getUsersBlogs multicall payload.
    * Detects whether the interface is accessible and if error messages leak usernames.
-   * This is a passive, read-only probe using intentionally invalid credentials.
    */
   async probeXmlRpc(usernameToValidate: string = 'admin'): Promise<InspectionResult> {
-    const fullUrl = new URL('/xmlrpc.php', this.config.targetUrl).toString();
+    const fullUrl = new URL(ENDPOINTS.XMLRPC, this.config.targetUrl).toString();
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.config.timeoutMs);
 
-    // Passive XML-RPC probe: wp.getUsersBlogs with invalid credentials.
-    // Error 403 = "Incorrect username or password" → username EXISTS.
-    // Error 404 = username not found.
     const xmlPayload = `<?xml version="1.0"?>
 <methodCall>
   <methodName>system.multicall</methodName>
@@ -139,7 +136,7 @@ export class HTTPInspector {
         signal: controller.signal,
         headers: {
           'Content-Type': 'text/xml',
-          'User-Agent': 'Mastra-Security-Auditor/1.0'
+          'User-Agent': CONSTANTS.AUDITOR_USER_AGENT
         },
         body: xmlPayload
       });
@@ -155,8 +152,6 @@ export class HTTPInspector {
         try {
           const body = await response.text();
 
-          // Error code 403 = "Incorrect username or password" → username EXISTS.
-          // Error code 404 = username not found.
           if (body.includes('faultCode') && body.includes('403')) {
             extractedUsers.push(usernameToValidate);
             findingDetail = `XML-RPC multicall: user '${usernameToValidate}' confirmed via error code 403 (incorrect password, valid user)`;
@@ -171,7 +166,7 @@ export class HTTPInspector {
       }
 
       return {
-        endpoint: '/xmlrpc.php [multicall probe]',
+        endpoint: `${ENDPOINTS.XMLRPC} [multicall probe]`,
         statusCode: response.status,
         isPubliclyExposed: response.status === 200,
         rawHeaders: headersObj,
@@ -181,7 +176,7 @@ export class HTTPInspector {
     } catch (error: any) {
       clearTimeout(timeoutId);
       return {
-        endpoint: '/xmlrpc.php [multicall probe]',
+        endpoint: `${ENDPOINTS.XMLRPC} [multicall probe]`,
         statusCode: 0,
         isPubliclyExposed: false,
         rawHeaders: {},
@@ -190,4 +185,3 @@ export class HTTPInspector {
     }
   }
 }
-

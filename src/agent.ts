@@ -3,6 +3,7 @@ import { generateText, isStepCount } from 'ai';
 import { inspectEndpointTool, probeXmlRpcTool, bruteForceLoginTool } from './tools/inspectTool.js';
 import { InspectionResult } from './types.js';
 import { BruteForceResult } from './bruteforce.js';
+import { AGENT_MESSAGES } from './constants.js';
 
 export class SecurityAuditAgent {
   public readonly name = 'WordPress Security Auditor';
@@ -37,7 +38,6 @@ export class SecurityAuditAgent {
   /**
    * Runs a real multi-step agentic loop via Vercel AI SDK generateText.
    * The LLM receives each tool result and autonomously decides the next action.
-   * Falls back to a standalone summary call if Groq's function-call parser fails mid-run.
    */
   async runEnumerationLoop(targetUrl: string): Promise<{
     results: InspectionResult[];
@@ -53,18 +53,7 @@ export class SecurityAuditAgent {
     console.log('\n[AI Agent] Starting agentic enumeration loop...');
     console.log('[AI Agent] Model: Groq llama-3.3-70b-versatile\n');
 
-    const systemPrompt = `You are a WordPress security auditor on an authorized pentest of ${targetUrl}.
-
-Call tools in this order:
-1. inspectEndpoint: /wp-json/wp/v2/users
-2. If no users found: inspectEndpoint /?author=1, /?author=2, /?author=3
-3. inspectEndpoint: /wp-content/debug.log
-4. inspectEndpoint: /readme.html
-5. probeXmlRpc with the best username found (or "admin")
-6. bruteForceLogin ONCE with the admin or first discovered username
-
-Do not repeat endpoints. Do not call bruteForceLogin more than once.
-After all tools finish, write a 3-sentence executive risk summary.`;
+    const systemPrompt = AGENT_MESSAGES.SYSTEM_PROMPT(targetUrl);
 
     let agentText = '';
     let agentSteps: any[] = [];
@@ -120,20 +109,42 @@ After all tools finish, write a 3-sentence executive risk summary.`;
         err?.message?.includes('failed_generation') ||
         err?.errors?.some((e: any) => e?.message?.includes('Failed to call a function'));
 
-      if (!isGroqFunctionCallError) throw err;
+      const isRateLimitOrTokenError =
+        err?.message?.includes('Rate limit reached') ||
+        err?.message?.includes('TPM') ||
+        err?.message?.includes('RPM') ||
+        err?.message?.includes('429') ||
+        err?.message?.includes('tokens') ||
+        err?.errors?.some((e: any) => 
+          e?.message?.includes('Rate limit') || 
+          e?.message?.includes('TPM') || 
+          e?.status === 429
+        );
 
-      console.log('\n[AI Agent] Groq function-call parse error — recovering with collected results...');
-      agentSteps = err?.steps ?? [];
-      agentText = await this.generateSummary(
-        results.length > 0
-          ? results.map(r => ({
-              endpoint: r.endpoint,
-              isPubliclyExposed: r.isPubliclyExposed,
-              extractedUsers: r.extractedUsers,
-              findingsSummary: r.findingsSummary,
-            }))
-          : [{ endpoint: targetUrl, isPubliclyExposed: false, findingsSummary: 'Enumeration incomplete due to API error' }],
-      );
+      if (isRateLimitOrTokenError) {
+        console.log(AGENT_MESSAGES.RATE_LIMIT_WARNING);
+        agentSteps = err?.steps ?? [];
+        agentText = AGENT_MESSAGES.RATE_LIMIT_SUMMARY;
+      } else if (isGroqFunctionCallError) {
+        console.log(AGENT_MESSAGES.PARSE_ERROR_RECOVERY);
+        agentSteps = err?.steps ?? [];
+        try {
+          agentText = await this.generateSummary(
+            results.length > 0
+              ? results.map(r => ({
+                  endpoint: r.endpoint,
+                  isPubliclyExposed: r.isPubliclyExposed,
+                  extractedUsers: r.extractedUsers,
+                  findingsSummary: r.findingsSummary,
+                }))
+              : [{ endpoint: targetUrl, isPubliclyExposed: false, findingsSummary: 'Enumeration incomplete due to API error' }],
+          );
+        } catch {
+          agentText = AGENT_MESSAGES.PARSE_ERROR_FALLBACK;
+        }
+      } else {
+        throw err;
+      }
     }
 
     // ── Extract structured results from completed steps ───────────────────────
