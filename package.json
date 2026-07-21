@@ -1,0 +1,35 @@
+{
+  "name": "wp-security-audit-agent",
+  "version": "1.0.0",
+  "description": "AI-driven WordPress user enumeration and brute force audit tool using Vercel AI SDK agentic loop",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "npx tsx --env-file=.env --test src/__tests__/checks.test.ts",
+    "start": "npx tsx --env-file=.env src/index.ts",
+    "start:prod": "node --env-file=.env dist/index.js",
+    "bruteforce": "npx tsx --env-file=.env src/bruteforce.ts",
+    "bruteforce:prod": "node --env-file=.env dist/bruteforce.js"
+  },
+  "keywords": [
+    "security",
+    "audit",
+    "wordpress",
+    "ai-agent",
+    "enumeration",
+    "bruteforce",
+    "penetration-testing"
+  ],
+  "author": "Amann",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.17",
+    "ai": "^7.0.33",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.3"
+  }
+}
