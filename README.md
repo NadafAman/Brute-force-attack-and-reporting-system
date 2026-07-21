@@ -1,6 +1,7 @@
 # WordPress AI Security Audit Agent
+> **Astra Security SDE Take-Home Assignment — AI-Driven WordPress User Enumeration Tool**
 
-An AI-driven WordPress user enumeration and brute-force tool. The LLM (Groq llama-3.3-70b) runs in an agentic loop — it calls HTTP inspection tools, reads the results, and autonomously decides which technique to apply next, rather than following a hardcoded sequence.
+An AI-driven WordPress user enumeration and brute-force tool. The LLM (Groq `llama-3.3-70b-versatile`) runs in an agentic loop — it calls HTTP inspection tools, reads the results, and autonomously decides which technique to apply next, rather than following a hardcoded sequence.
 
 ---
 
@@ -187,7 +188,7 @@ Tests use Node.js built-in `node:test` — no test framework required. The test 
 | Limitation | Notes |
 |------------|-------|
 | **LLM non-determinism** | The agent may vary in which tools it calls and in what order across runs. The system prompt enforces a strategy but the LLM may occasionally deviate. |
-| **Brute force is capped at 100 attempts** | Intentional. Full wordlist brute force is inappropriate for an 8-12 hour assignment tool. The cap makes it safe for the test target while demonstrating the technique. |
+| **Brute force runtime** | Performs brute forcing against `passwords.txt` with configurable concurrency (`workers: 10`) and delays (`0.05s`). Full 100k password runs will take ~30 mins if not rate-limited. |
 | **Groq rate limits** | Free tier: 14,400 req/day, 30 req/min. On a slow network or against a slow target, tool steps may approach limits. |
 | **Cookie-based login detection** | The `tryLogin` function uses redirect + cookie header detection. 2FA plugins, CAPTCHA, or custom login flows may cause false negatives. |
 | **Author redirect only probes IDs 1–3** | The LLM is instructed to probe up to `/?author=3`. Sites with many users require higher IDs, which the agent will not attempt unless prompted. |
